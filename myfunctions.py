@@ -3257,24 +3257,44 @@ def restore_replicates(folder):
     os.remove(folder + 'file_map.pkl')
 
 
-def plot_df(df, split=None, sort=None, close=True, data_column='Data-array', background=None, unique_box=True,
-            **kwargs):
+def plot_df(df, split=None, sort=None, close=True, data_column='Data-array', background=None, unique_box=True, **kwargs):
     """
-    Plots data from a DataFrame with interactive features.
-
-    This function plots data from a DataFrame, allowing for interactive features such as clicking on axes to display detailed information.
-    The data can be split into multiple subplots based on specified columns.
-
-    Parameters:
-    df (pd.DataFrame): The DataFrame containing the data to plot.
-    split (list or str, optional): The column(s) to split the data into subplots. If None, no splitting is done. Default is None.
-    sort  (list or str, optional): Additional column(s) to further split the data into subplots. If None, no additional splitting is done. Default is None.
-    force (bool, optional): Whether to force the plotting even if some data is missing. Default is True.
-    **kwargs: Additional keyword arguments to pass to the plotting function.
-
-    Returns:
-    dict: A dictionary of axes objects for the created plots.
-    pd.DataFrame: The DataFrame with the plotted data.
+        This function generates interactive plots from a DataFrame, allowing users to click on axes to display detailed 
+    information. The data can be split into multiple subplots based on specified columns, and additional features 
+    such as highlighting and background coloring can be applied.
+    -----------
+    df : pd.DataFrame
+        The DataFrame containing the data to plot. It must include columns such as 'Folder', 'FileBase', and 'Replicate'.
+    split : list or str, optional
+        The column(s) to split the data into subplots. If None, no splitting is done. Default is None.
+    sort : list or str, optional
+        Additional column(s) to further split the data into subplots. If None, no additional splitting is done. 
+        Columns prefixed with '-' will be sorted in descending order. Default is None.
+     (split/sort) both accept special syntax with '+' or '-' to include/exclude multiple values in a single split separated by commas.
+            i.e. 'Strain ID+A,B,C' will only include Strain IDs A, B, and C in that split.
+            i.e. 'Folder-X,Y' will include all Folders except X and Y from that split. 
+    close : bool, optional
+        Whether to close existing figures before plotting. Default is True.
+    data_column : str, optional
+        The column name in the DataFrame containing the data to be plotted. Default is 'Data-array'.
+    background : str, optional
+        The column name in the DataFrame used to assign background colors to subplots. If None, no background 
+        coloring is applied. Default is None.
+    unique_box : bool, optional
+        Whether to display a unique ID box for each figure. Default is True.
+    **kwargs : dict
+        Additional keyword arguments to pass to the plotting function.
+    --------
+    axes : dict
+        A dictionary of axes objects for the created plots. The keys are figure names, and the values are arrays of axes.
+    df : pd.DataFrame
+        The DataFrame with the plotted data, potentially modified during the plotting process.
+    Notes:
+    ------
+    - The function supports interactive features such as single and double clicks on axes to display or highlight 
+      specific data.
+    - If the `background` parameter is provided, subplots are colored based on the unique values in the specified column.
+    - The function dynamically adjusts the layout and adds legends or unique ID boxes as needed.
     """
     if split is None:
         split = []
