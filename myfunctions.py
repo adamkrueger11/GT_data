@@ -1593,7 +1593,8 @@ def ring_width(arr, plot=False, vlims=[None, None], edges=False, all_data=False,
         return start, end, widths, max_inds
     return widths
 
-
+import sys
+sys.path.append(os.path.dirname(__file__))
 from roughness_PB import getwloc, w_data_extraction, linregress
 
 from tqdm import tqdm
@@ -1964,13 +1965,13 @@ def clean_data(raw, response_init=None, manual=False, degree_of_fit=None, return
     corners = get_corners(raw, minR_factor=radius)
     cleaned_data['corners'] = sym_reg(corners, degree=degree_of_fit if degree_of_fit else 2, normal=True,
                                       full_image=raw)  # Analysis of full inoculation images is not yet prepared.
-    cleaned_data['strip'] = None  # Analysis of strip is not yet prepared.
-    cleaned_data['full'] = sym_reg(raw, degree=degree_of_fit if degree_of_fit else 1, normal=True)
     I, J = cartesian(raw)
     edge = np.where(J > J.shape[1] - 125, raw,
                     np.nan)  # this should be generalized to find the 125 and/or find it on the left in function (find_edge)
     cleaned_data['edge'] = sym_reg(edge, degree=degree_of_fit if degree_of_fit else 1, normal=True, full_image=raw)
-
+    edges = np.where((J > J.shape[1] - 125) | (J < 125), raw, np.nan)
+    cleaned_data['strip'] = sym_reg(edges, degree=degree_of_fit if degree_of_fit else 1, normal=True, full_image=raw)  # Analysis of strip is not yet prepared.
+    
     if return_all: return cleaned_data
     if response_init is None:
         response = ''
@@ -2072,9 +2073,6 @@ def clean_data(raw, response_init=None, manual=False, degree_of_fit=None, return
     if cleaned_data[response] is None:
         print('Analysis of full inoculation images is not yet prepared.')
         return None
-    elif response == 'strip':
-        print('Analysis of strip is not yet prepared.')
-        return None
     else:
         return cleaned_data[response]
 
@@ -2107,7 +2105,7 @@ def clean_df(df, data_column='Data-array', response_init=None, manual=False, deg
 strain_max_len = 4
 
 
-def assemble_data(folders, return_path=False, save_to_metadata=True, cleaning_mode=None, degree_of_fit=1):
+def assemble_data(folders, return_path=False, save_to_metadata=False, cleaning_mode='strip', degree_of_fit=1):
     """
     Assembles and cleans data from specified folders.
 
@@ -2127,7 +2125,7 @@ def assemble_data(folders, return_path=False, save_to_metadata=True, cleaning_mo
     if isinstance(folders, str):
         folders = [folders]
     split_obj = '\\' if '\\' in os.getcwd() else '/'
-    root = '/'.join(os.getcwd().split(split_obj)[:-1]) + '/Data/'
+    root = root or '/'.join(os.getcwd().split(split_obj)[:-1]) + '/Data/'
     metadata_file = root + 'METADATA_file.xlsx'
     master_list = pd.read_excel(root + 'Strain Master List.xlsx', sheet_name=None)
     root = root + 'Interferometer/'
@@ -2135,7 +2133,7 @@ def assemble_data(folders, return_path=False, save_to_metadata=True, cleaning_mo
     df = pd.DataFrame()
     for folder in folders:
         folder = folder + ('/' if not folder.endswith('/') else '')
-        working_folder = root + folder
+        working_folder = folder
         print(f'\nExtracting metadata from {folder}.')
         new_meta = pd.DataFrame()
         metadata, response = extract_metadata(folder, save_to_meta=save_to_metadata, master_list=master_list,
@@ -3654,7 +3652,7 @@ import importlib
 
 
 def reload():
-    import myfunctions
+    from GT_data import myfunctions
     importlib.reload(myfunctions)
 
 
@@ -4111,3 +4109,36 @@ def plot_urine_cfus():
     plt.tight_layout()
     plt.pause(1)
     return fig
+
+
+def gather_data(paths):
+    if isinstance(paths,str):
+        paths = [paths]
+    df = pd.DataFrame()
+    for path in paths:
+        date = path.split('/')[-1]
+        this_df = pd.read_excel(os.path.join(path,f'metadata_{date}.xlsx'))
+        add = {'Unclean-array': [], 'Intensity-array': [], 'Data-array': [], 'Raw-array': []}
+        for idx, row in tqdm(this_df.iterrows(),desc=f'Gathering data from {date}',total=len(this_df)):
+            fb = row['FileBase']
+            if isinstance(fb, (float,int)):
+                fb = str(int(fb)).zfill(3)
+            data_path = os.path.join(path, fb + '.datx')
+            if os.path.exists(data_path):
+                data_dic = convert_data(data_path)
+                add['Unclean-array'].append(data_dic['Heights'])
+                add['Data-array'].append(clean_data(data_dic['Heights'], response_init='strip', degree_of_fit=2))
+            else:
+                print(f'Data file not found for {fb} at {data_path}')
+            raw_path = os.path.join(path, 'raw', fb + '.datx')
+            if os.path.exists(raw_path):
+                raw_dic = convert_data(raw_path)
+                add['Raw-array'].append(raw_dic['Heights'])
+                add['Intensity-array'].append(raw_dic['Intensity'])
+            else:
+                print(f'Raw file not found for {fb} at {raw_path}')
+
+        this_df = this_df.assign(**add)
+        df = pd.concat([df, this_df], ignore_index=True, axis = 0)
+        
+    return df
